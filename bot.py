@@ -3,7 +3,7 @@ import os
 import requests
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
-    Application,
+    ApplicationBuilder,
     CommandHandler,
     MessageHandler,
     filters,
@@ -11,32 +11,26 @@ from telegram.ext import (
     ConversationHandler,
 )
 
-# ─── تنظیمات ───────────────────────────────────────────────
-BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE")
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "YOUR_TOKEN_HERE")
 APPS_SCRIPT_URL = os.environ.get(
     "APPS_SCRIPT_URL",
     "https://script.google.com/macros/s/AKfycbxIqetkE4yMH0C6w7E5vFG9N7RbJ9cEmKgdxsxr85rQex1-qVQDm58kmfl3JpfVmZyQIg/exec",
 )
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1hDrvkAJTrtwlWNSONcRcb73vBXGUfclt/edit?usp=sharing"
 
-# ─── لاگ ───────────────────────────────────────────────────
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
     level=logging.INFO,
 )
-logger = logging.getLogger(__name__)
 
-# ─── مراحل مکالمه ──────────────────────────────────────────
 WAITING_PREDICTION = 1
 
-# ─── کیبورد اصلی ───────────────────────────────────────────
 def main_keyboard():
     return ReplyKeyboardMarkup(
         [[KeyboardButton("🎯 پیشبینی بازی"), KeyboardButton("📊 نتایج")]],
         resize_keyboard=True,
     )
 
-# ─── /start ────────────────────────────────────────────────
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     name = update.effective_user.first_name or "دوست عزیز"
     text = (
@@ -48,7 +42,6 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=main_keyboard())
     return ConversationHandler.END
 
-# ─── دکمه پیشبینی بازی ─────────────────────────────────────
 async def prediction_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     guide = (
         "📋 راهنمای پیشبینی\n\n"
@@ -60,12 +53,9 @@ async def prediction_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(guide)
     return WAITING_PREDICTION
 
-# ─── دریافت پیشبینی ────────────────────────────────────────
 async def receive_prediction(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     prediction_text = update.message.text
-
-    # ارسال به گوگل شیت
     try:
         payload = {
             "username": user.username or user.first_name or "ناشناس",
@@ -74,7 +64,7 @@ async def receive_prediction(update: Update, context: ContextTypes.DEFAULT_TYPE)
         }
         requests.post(APPS_SCRIPT_URL, json=payload, timeout=10)
     except Exception as e:
-        logger.error(f"خطا در ارسال به گوگل شیت: {e}")
+        logging.error(f"خطا: {e}")
 
     confirm = (
         "✅ پیشبینیت دریافت شد!\n\n"
@@ -85,7 +75,6 @@ async def receive_prediction(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await update.message.reply_text(confirm, reply_markup=main_keyboard())
     return ConversationHandler.END
 
-# ─── دکمه نتایج ────────────────────────────────────────────
 async def results_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = (
         "📊 نتایج و جداول\n\n"
@@ -95,14 +84,12 @@ async def results_button(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(text, reply_markup=main_keyboard())
     return ConversationHandler.END
 
-# ─── کنسل ──────────────────────────────────────────────────
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("انصراف داده شد.", reply_markup=main_keyboard())
     return ConversationHandler.END
 
-# ─── main ──────────────────────────────────────────────────
-def main():
-    app = Application.builder().token(BOT_TOKEN).build()
+if __name__ == "__main__":
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
 
     conv = ConversationHandler(
         entry_points=[MessageHandler(filters.Regex("^🎯 پیشبینی بازی$"), prediction_button)],
@@ -124,8 +111,5 @@ def main():
     app.add_handler(conv)
     app.add_handler(MessageHandler(filters.Regex("^📊 نتایج$"), results_button))
 
-    logger.info("ربات شروع به کار کرد ✅")
+    logging.info("ربات شروع به کار کرد ✅")
     app.run_polling(drop_pending_updates=True)
-
-if __name__ == "__main__":
-    main()
